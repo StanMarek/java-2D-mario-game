@@ -1,6 +1,8 @@
 package engine;
 
+import org.joml.Vector2f;
 import org.lwjgl.BufferUtils;
+import renderer.Shader;
 
 import java.awt.event.KeyEvent;
 import java.nio.FloatBuffer;
@@ -44,10 +46,10 @@ public class LevelEditorScene extends Scene{
 
     private float[] vertexArray = {
             //position             color
-             0.5f, -0.5f, 0.0f,    1.0f, 0.0f, 0.0f, 1.0f,
-            -0.5f,  0.5f, 0.0f,    0.0f, 1.0f, 0.0f, 1.0f,
-             0.5f,  0.5f, 0.0f,    0.0f, 0.0f, 1.0f, 1.0f,
-            -0.5f, -0.5f, 0.0f,    1.0f, 1.0f, 0.0f, 1.0f,
+         100.5f, 0.5f, 0.0f,    1.0f, 0.0f, 0.0f, 1.0f,
+         0.5f,  100.5f, 0.0f,    0.0f, 1.0f, 0.0f, 1.0f,
+         100.5f,  100.5f, 0.0f,    0.0f, 0.0f, 1.0f, 1.0f,
+         0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f, 1.0f,
     };
 
     private int[] elementArray = {
@@ -59,27 +61,19 @@ public class LevelEditorScene extends Scene{
     private int vaoId;
     private int eboId;
 
+    private Shader defaultShader;
+
     public LevelEditorScene() {
 //        System.out.println("Inside level editor scene");
     }
 
     @Override
     public void update(float dt) {
-//        System.out.println("" + (1.0f/dt) + " FPS");
-//
-//        if(!changingScene && KeyListener.isKeyPressed(KeyEvent.VK_SPACE)) {
-//            changingScene = true;
-//        }
-//
-//        if (changingScene && timeToChangeScene > 0) {
-//            timeToChangeScene -= dt;
-//            Window.get().r -= dt * 0.5;
-//            Window.get().g -= dt * 0.5;
-//            Window.get().b -= dt * 0.5;
-//        } else if (changingScene) {
-//            Window.changeScene(1);
-//        }
-        glUseProgram(shaderProgram);
+        camera.position.x -= dt * 50.0f;
+        defaultShader.use();
+        defaultShader.uploadMat4f("uProjection", camera.getProjectionMatrix());
+        defaultShader.uploadMat4f("uView", camera.getViewMatrix());
+
         glBindVertexArray(vaoId);
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
@@ -90,44 +84,15 @@ public class LevelEditorScene extends Scene{
         glDisableVertexAttribArray(1);
 
         glBindVertexArray(0);
-        glUseProgram(0);
+        defaultShader.detach();
     }
 
     @Override
     public void init() {
-        vertexId = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexId, vertexShaderSource);
-        glCompileShader(vertexId);
-        int success = glGetShaderi(vertexId, GL_COMPILE_STATUS);
-        if(success == GL_FALSE) {
-            int len = glGetShaderi(vertexId, GL_INFO_LOG_LENGTH);
-            System.out.println("ERROR: vertex shader compilation failed");
-            System.out.println(glGetShaderInfoLog(vertexId, len));
-            assert false : "";
-        }
+        this.camera = new Camera(new Vector2f());
 
-        fragmentId = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentId, fragmentShaderSource);
-        glCompileShader(fragmentId);
-        success = glGetShaderi(fragmentId, GL_COMPILE_STATUS);
-        if(success == GL_FALSE) {
-            int len = glGetShaderi(fragmentId, GL_INFO_LOG_LENGTH);
-            System.out.println("ERROR: fragment shader compilation failed");
-            System.out.println(glGetShaderInfoLog(fragmentId, len));
-            assert false : "";
-        }
-
-        shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexId);
-        glAttachShader(shaderProgram, fragmentId);
-        glLinkProgram(shaderProgram);
-        success = glGetProgrami(shaderProgram, GL_LINK_STATUS);
-        if(success == GL_FALSE) {
-            int len = glGetProgrami(shaderProgram, GL_INFO_LOG_LENGTH);
-            System.out.println("ERROR: linking shaders failed");
-            System.out.println(glGetProgramInfoLog(shaderProgram, len));
-            assert false : "";
-        }
+        defaultShader = new Shader("assets/shaders/default.glsl");
+        defaultShader.compile();
 
         vaoId = glGenVertexArrays();
         glBindVertexArray(vaoId);
