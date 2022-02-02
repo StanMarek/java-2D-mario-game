@@ -1,8 +1,12 @@
 package engine;
 
+import components.FontRenderer;
+import components.SpriteRenderer;
 import org.joml.Vector2f;
 import org.lwjgl.BufferUtils;
 import renderer.Shader;
+import renderer.Texture;
+import util.Time;
 
 import java.awt.event.KeyEvent;
 import java.nio.FloatBuffer;
@@ -14,45 +18,15 @@ import static org.lwjgl.opengl.GL30.glGenVertexArrays;
 
 public class LevelEditorScene extends Scene{
 
-//    private boolean changingScene = false;
-//    private float timeToChangeScene = 2.0f;
-
-    private final String vertexShaderSource = "#version 330 core\n" +
-            "\n" +
-            "layout (location = 0) in vec3 aPos;\n" +
-            "layout (location = 1) in vec4 aColor;\n" +
-            "\n" +
-            "out vec4 fColor;\n" +
-            "\n" +
-            "void main()\n" +
-            "{\n" +
-            "    fColor = aColor;\n" +
-            "    gl_Position = vec4(aPos, 1.0);\n" +
-            "}";
-    private final String fragmentShaderSource = "#version 330 core\n" +
-            "\n" +
-            "in vec4 fColor;\n" +
-            "\n" +
-            "out vec4 color;\n" +
-            "\n" +
-            "void main()\n" +
-            "{\n" +
-            "    color = fColor;\n" +
-            "}";
-
-    private int vertexId;
-    private int fragmentId;
-    private int shaderProgram;
-
-    private float[] vertexArray = {
-            //position             color
-         100.5f, 0.5f, 0.0f,    1.0f, 0.0f, 0.0f, 1.0f,
-         0.5f,  100.5f, 0.0f,    0.0f, 1.0f, 0.0f, 1.0f,
-         100.5f,  100.5f, 0.0f,    0.0f, 0.0f, 1.0f, 1.0f,
-         0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f, 1.0f,
+    private final float[] vertexArray = {
+         //position                color                        UV coord
+         100.5f, 0.0f,   0.0f,     1.0f, 0.0f, 0.0f, 1.0f,      1, 0,
+         0.0f,   100.0f, 0.0f,     0.0f, 1.0f, 0.0f, 1.0f,      0, 1,
+         100.5f, 100.0f, 0.0f,     0.0f, 0.0f, 1.0f, 1.0f,      1, 1,
+         0.0f,   0.0f,   0.0f,     1.0f, 1.0f, 0.0f, 1.0f,      0, 0
     };
 
-    private int[] elementArray = {
+    private final int[] elementArray = {
             2, 1, 0,
             0, 1, 3
     };
@@ -62,37 +36,28 @@ public class LevelEditorScene extends Scene{
     private int eboId;
 
     private Shader defaultShader;
+    private Texture textTexture;
+
+    private GameObject testGameObject;
+    private boolean firstTime = false;
 
     public LevelEditorScene() {
 //        System.out.println("Inside level editor scene");
     }
 
     @Override
-    public void update(float dt) {
-        camera.position.x -= dt * 50.0f;
-        defaultShader.use();
-        defaultShader.uploadMat4f("uProjection", camera.getProjectionMatrix());
-        defaultShader.uploadMat4f("uView", camera.getViewMatrix());
-
-        glBindVertexArray(vaoId);
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-
-        glDrawElements(GL_TRIANGLES, elementArray.length, GL_UNSIGNED_INT, 0);
-
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
-
-        glBindVertexArray(0);
-        defaultShader.detach();
-    }
-
-    @Override
     public void init() {
+        System.out.println("creating test obj");
+        this.testGameObject = new GameObject("testObj");
+        this.testGameObject.addComponent(new SpriteRenderer());
+        this.testGameObject.addComponent(new FontRenderer());
+        this.addGameObjectToScene(this.testGameObject);
         this.camera = new Camera(new Vector2f());
 
         defaultShader = new Shader("assets/shaders/default.glsl");
         defaultShader.compile();
+
+        this.textTexture = new Texture("assets/images/mario.png");
 
         vaoId = glGenVertexArrays();
         glBindVertexArray(vaoId);
@@ -113,13 +78,56 @@ public class LevelEditorScene extends Scene{
 
         int positionsSize = 3;
         int colorsSize = 4;
-        int floatSizeBytes = 4;
-        int vertexSizeInBytes = (positionsSize + colorsSize) * floatSizeBytes;
+        int uvSize = 2;
+        //int floatSizeBytes = 4;
+        int vertexSizeInBytes = (positionsSize + colorsSize + uvSize) * Float.BYTES;
         glVertexAttribPointer(0, positionsSize, GL_FLOAT, false, vertexSizeInBytes, 0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, colorsSize, GL_FLOAT, false, vertexSizeInBytes, positionsSize * floatSizeBytes);
+        glVertexAttribPointer(1, colorsSize, GL_FLOAT, false, vertexSizeInBytes, positionsSize * Float.BYTES);
         glEnableVertexAttribArray(1);
+
+        glVertexAttribPointer(2, uvSize, GL_FLOAT, false, vertexSizeInBytes, (positionsSize + colorsSize) * Float.BYTES);
+        glEnableVertexAttribArray(2);
+    }
+
+    @Override
+    public void update(float dt) {
+        camera.position.x -= dt * 50.0f;
+        camera.position.y -= dt * 50.0f;
+        defaultShader.use();
+
+        defaultShader.uploadTexture("TEX_SAMPLER", 0);
+        glActiveTexture(GL_TEXTURE0);
+        textTexture.bind();
+
+        defaultShader.uploadMat4f("uProjection", camera.getProjectionMatrix());
+        defaultShader.uploadMat4f("uView", camera.getViewMatrix());
+        defaultShader.uploadFloat("uTime", Time.getTime());
+
+        glBindVertexArray(vaoId);
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+
+        glDrawElements(GL_TRIANGLES, elementArray.length, GL_UNSIGNED_INT, 0);
+
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+
+        glBindVertexArray(0);
+        defaultShader.detach();
+
+        if(!firstTime) {
+            System.out.println("creating game object");
+            GameObject go = new GameObject("Game test 2");
+            go.addComponent(new SpriteRenderer());
+            this.addGameObjectToScene(go);
+            firstTime = true;
+        }
+
+        for(GameObject go : this.gameObjects) {
+            go.update(dt);
+        }
     }
 
 }
